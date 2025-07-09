@@ -2,16 +2,16 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-// ! Routes
-import authRoutes from './routes/authRoute'; // NEW: Import auth routes
-// import userRoutes from './routes/userRoutes'; // Will be added later
-// import scheduleRoutes from './routes/scheduleRoutes';
-// import tokenRoutes from './routes/tokenRoutes';
-// import inventoryRoutes from './routes/inventoryRoutes';
-// import alertRoutes from './routes/alertRoutes';
+// Import route modules
+import authRoutes from './routes/authRoutes';
+import userRoutes from './routes/userRoutes';
+import scheduleRoutes from './routes/scheduleRoutes'; // NEW: Import schedule routes
+// import tokenRoutes from './routes/tokenRoutes'; // Will be added later
+// import inventoryRoutes from './routes/inventoryRoutes'; // Will be added later
+// import alertRoutes from './routes/alertRoutes'; // Will be added later
 
 // Import middleware
-import { protect } from './middlewares/authMiddleware'; // NEW: Import protect middleware
+import { protect } from './middlewares/authMiddleware';
 
 const app = express();
 
@@ -28,11 +28,10 @@ app.get('/', (_req, res) => {
   res.send('Wenlock Backend API is live 🔥');
 });
 
-// Add routes here as they are developed
-app.use('/api/auth', authRoutes); // NEW: Use auth routes
-// Example of a protected route (will be added later)
-// app.use('/api/users', protect, userRoutes);
-// app.use('/api/schedules', protect, scheduleRoutes);
+// Add routes here
+app.use('/api/auth', authRoutes); // Auth routes (login, register)
+app.use('/api/users', protect, userRoutes); // User routes, protected by JWT
+app.use('/api/schedules', protect, scheduleRoutes); // NEW: Schedule routes, protected by JWT and roles
 // app.use('/api/tokens', protect, tokenRoutes);
 // app.use('/api/inventory', protect, inventoryRoutes);
 // app.use('/api/alerts', protect, alertRoutes);
