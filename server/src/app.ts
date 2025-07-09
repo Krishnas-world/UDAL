@@ -2,16 +2,16 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-// Import route modules here as we create them
-// import authRoutes from './routes/authRoutes';
-// import userRoutes from './routes/userRoutes';
+// ! Routes
+import authRoutes from './routes/authRoute'; // NEW: Import auth routes
+// import userRoutes from './routes/userRoutes'; // Will be added later
 // import scheduleRoutes from './routes/scheduleRoutes';
 // import tokenRoutes from './routes/tokenRoutes';
 // import inventoryRoutes from './routes/inventoryRoutes';
 // import alertRoutes from './routes/alertRoutes';
 
 // Import middleware
-// import { protect } from './middleware/authMiddleware';
+import { protect } from './middlewares/authMiddleware'; // NEW: Import protect middleware
 
 const app = express();
 
@@ -29,7 +29,8 @@ app.get('/', (_req, res) => {
 });
 
 // Add routes here as they are developed
-// app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRoutes); // NEW: Use auth routes
+// Example of a protected route (will be added later)
 // app.use('/api/users', protect, userRoutes);
 // app.use('/api/schedules', protect, scheduleRoutes);
 // app.use('/api/tokens', protect, tokenRoutes);
