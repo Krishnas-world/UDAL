@@ -1,7 +1,18 @@
 // src/controllers/scheduleController.ts
 import { Request, Response } from 'express';
 import Schedule, { ISchedule } from '../models/Schedule';
+import Counter from '../models/Counter'; // NEW: Import Counter model
 import { getIo } from '../sockets/socket'; // Import the Socket.IO instance
+
+// Helper function to get next sequence number for a department
+async function getNextSequence(department: string): Promise<number> {
+  const counter = await Counter.findByIdAndUpdate(
+    department,
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true } // Create if not exists, return updated document
+  );
+  return counter.seq;
+}
 
 // @desc    Get all schedules
 // @route   GET /api/schedules
@@ -23,39 +34,48 @@ export const getSchedules = async (req: Request, res: Response) => {
   }
 };
 
-// @desc    Get a single schedule by ID
-// @route   GET /api/schedules/:id
-// @access  Protected (general_staff, ot_staff, admin)
-export const getScheduleById = async (req: Request, res: Response) => {
-  try {
-    const schedule = await Schedule.findById(req.params.id);
 
-    if (!schedule) {
-      return res.status(404).json({ message: 'Schedule not found' });
+// NEW: @desc Get schedules by patient token
+// NEW: @route GET /api/schedules/by-patient-token/:patientToken
+// NEW: @access Protected (general_staff, ot_staff, pharmacy_staff, admin)
+export const getSchedulesByPatientToken = async (req: Request, res: Response) => {
+  try {
+    const patientToken = req.params.patientToken as string;
+    const schedules = await Schedule.find({ patientToken }).sort({ scheduledTime: 1 });
+
+    if (schedules.length === 0) {
+      return res.status(404).json({ message: 'No schedules found for this patient token' });
     }
-    res.json(schedule);
+    res.json(schedules);
   } catch (error: any) {
-    console.error('Error fetching schedule by ID:', error);
+    console.error('Error fetching schedules by patient token:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
 
 // @desc    Create a new schedule
 // @route   POST /api/schedules
 // @access  Protected (ot_staff, admin)
 export const createSchedule = async (req: Request, res: Response) => {
-  const { department, type, patientToken, doctorName, roomNumber, scheduledTime, notes } = req.body;
+  // patientToken is now system-assigned, so we don't expect it in the body
+  const { department, type, doctorName, roomNumber, scheduledTime, notes } = req.body;
 
-  // Basic validation
-  if (!department || !type || !patientToken || !scheduledTime) {
-    return res.status(400).json({ message: 'Please enter all required fields: department, type, patientToken, scheduledTime' });
+  // Basic validation (patientToken is no longer required in body)
+  if (!department || !type || !scheduledTime) {
+    return res.status(400).json({ message: 'Please enter all required fields: department, type, scheduledTime' });
   }
 
   try {
+    // Generate patientToken based on department and a sequence number
+    const nextSeq = await getNextSequence(department);
+    const deptCode = (department.substring(0, 3).toUpperCase()).substring(0, 3);
+    const generatedPatientToken = `${deptCode}-${nextSeq.toString().padStart(8, '0')}`;
+
     const schedule = new Schedule({
       department,
       type,
-      patientToken,
+      patientToken: generatedPatientToken, // Use the system-assigned token
       doctorName,
       roomNumber,
       scheduledTime: new Date(scheduledTime), // Ensure it's a Date object
@@ -80,7 +100,8 @@ export const createSchedule = async (req: Request, res: Response) => {
 // @route   PUT /api/schedules/:id
 // @access  Protected (ot_staff, admin)
 export const updateSchedule = async (req: Request, res: Response) => {
-  const { department, type, patientToken, doctorName, roomNumber, scheduledTime, status, notes } = req.body;
+  // patientToken cannot be updated via this route, as it's system-assigned and part of the identifier logic
+  const { department, type, doctorName, roomNumber, scheduledTime, status, notes } = req.body;
 
   try {
     const schedule = await Schedule.findById(req.params.id);
@@ -89,10 +110,9 @@ export const updateSchedule = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Schedule not found' });
     }
 
-    // Update fields
+    // Update fields (patientToken is not in this update payload)
     schedule.department = department || schedule.department;
     schedule.type = type || schedule.type;
-    schedule.patientToken = patientToken || schedule.patientToken;
     schedule.doctorName = doctorName || schedule.doctorName;
     schedule.roomNumber = roomNumber || schedule.roomNumber;
     schedule.scheduledTime = scheduledTime ? new Date(scheduledTime) : schedule.scheduledTime;
