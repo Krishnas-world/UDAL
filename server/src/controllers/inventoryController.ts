@@ -2,7 +2,7 @@
 import { Request, Response } from 'express';
 import Inventory, { IInventory } from '../models/Inventory';
 import { getIo } from '../sockets/socket'; // Import the Socket.IO instance
-
+import { createAuditLog } from './auditController'; 
 // Helper function to check for low stock and emit alert
 const checkAndEmitLowStock = async (inventoryItem: IInventory) => {
   if (inventoryItem.currentStock <= inventoryItem.reorderThreshold) {
@@ -52,7 +52,6 @@ export const getInventoryItemById = async (req: Request, res: Response) => {
 // @access  Protected (pharmacy_staff, admin)
 export const getLowStockItems = async (_req: Request, res: Response) => {
   try {
-    // FIX: Replaced $where with $expr and $lte for wider compatibility and performance
     const lowStockItems = await Inventory.find({
       $expr: { $lte: ['$currentStock', '$reorderThreshold'] }
     });
@@ -90,6 +89,19 @@ export const createInventoryItem = async (req: Request, res: Response) => {
 
     const createdItem = await newItem.save();
 
+    // NEW: Log inventory item creation
+    if (req.user) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'inventory_create',
+        `Created new inventory item: ${createdItem.drugName} (Stock: ${createdItem.currentStock})`,
+        createdItem._id?.toString(),
+        'Inventory',
+        req
+      );
+    }
+
     // Emit real-time update for inventory change
     const io = getIo();
     io.emit('inventoryUpdate', { action: 'create', item: createdItem });
@@ -109,16 +121,13 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
   const { drugName, currentStock, reorderThreshold, location, notes } = req.body;
 
   try {
-    // Explicitly type 'item' to IInventory | null
     const item: IInventory | null = await Inventory.findById(req.params.id);
 
     if (!item) {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
 
-    // Prevent changing drugName if it would conflict with existing one
     if (drugName && drugName !== item.drugName) {
-        // Explicitly type 'drugNameExists' to IInventory | null
         const drugNameExists: IInventory | null = await Inventory.findOne({ drugName });
         if (
           drugNameExists &&
@@ -129,6 +138,9 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
         }
     }
 
+    const oldStock = item.currentStock; // Capture old stock for logging
+    const oldThreshold = item.reorderThreshold; // Capture old threshold for logging
+
     item.drugName = drugName || item.drugName;
     item.currentStock = currentStock !== undefined ? currentStock : item.currentStock;
     item.reorderThreshold = reorderThreshold !== undefined ? reorderThreshold : item.reorderThreshold;
@@ -136,6 +148,26 @@ export const updateInventoryItem = async (req: Request, res: Response) => {
     item.notes = notes || item.notes;
 
     const updatedItem = await item.save();
+
+    // NEW: Log inventory item update
+    if (req.user) {
+      let details = `Updated inventory item: ${updatedItem.drugName} (ID: ${updatedItem._id}).`;
+      if (updatedItem.currentStock !== oldStock) {
+        details += ` Stock changed from ${oldStock} to ${updatedItem.currentStock}.`;
+      }
+      if (updatedItem.reorderThreshold !== oldThreshold) {
+        details += ` Threshold changed from ${oldThreshold} to ${updatedItem.reorderThreshold}.`;
+      }
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'inventory_update',
+        details,
+        updatedItem._id?.toString(),
+        'Inventory',
+        req
+      );
+    }
 
     // Emit real-time update for inventory change
     const io = getIo();
@@ -160,7 +192,23 @@ export const deleteInventoryItem = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Inventory item not found' });
     }
 
+    const deletedItemName = item.drugName;
+    const deletedItemId = item._id;
+
     await Inventory.deleteOne({ _id: req.params.id });
+
+    // NEW: Log inventory item deletion
+    if (req.user) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'inventory_delete',
+        `Deleted inventory item: ${deletedItemName} (ID: ${deletedItemId}) by ${req.user.username}`,
+        deletedItemId?.toString(),
+        'Inventory',
+        req
+      );
+    }
 
     // Emit real-time update for inventory change
     const io = getIo();

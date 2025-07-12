@@ -8,7 +8,8 @@ import scheduleRoutes from './routes/scheduleRoutes';
 import tokenRoutes from './routes/tokenRoutes';
 import inventoryRoutes from './routes/inventoryRoutes';
 import alertRoutes from './routes/alertRoutes';
-
+import auditRoutes from './routes/auditRoutes'; 
+import reportRoutes from './routes/reportRoutes'
 // Import middleware
 import { protect } from './middlewares/authMiddleware';
 
@@ -34,5 +35,6 @@ app.use('/api/schedules', protect, scheduleRoutes);
 app.use('/api/tokens', protect, tokenRoutes);
 app.use('/api/inventory', protect, inventoryRoutes);
 app.use('/api/alerts', protect, alertRoutes);
-
+app.use('/api/auditlogs', protect, auditRoutes); 
+app.use('/api/reports', protect, reportRoutes);
 export default app;

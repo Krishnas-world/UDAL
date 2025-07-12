@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import Alert, { IAlert } from '../models/Alert';
 import { getIo } from '../sockets/socket'; // Import the Socket.IO instance
+import { createAuditLog } from './auditController'; // NEW: Import createAuditLog
 
 // @desc    Get all active alerts
 // @route   GET /api/alerts/active
@@ -27,11 +28,6 @@ export const triggerAlert = async (req: Request, res: Response) => {
   }
 
   try {
-    // Deactivate any existing alerts of the same type if needed (optional logic, depends on requirements)
-    // For simplicity, we'll allow multiple active alerts for now, but a hospital might want only one Code Red at a time.
-    // If you want to deactivate previous alerts of the same type:
-    // await Alert.updateMany({ type, active: true }, { $set: { active: false, deactivatedAt: new Date() } });
-
     const newAlert = new Alert({
       type,
       message,
@@ -41,6 +37,19 @@ export const triggerAlert = async (req: Request, res: Response) => {
     });
 
     const createdAlert = await newAlert.save();
+
+    // NEW: Log alert trigger
+    if (req.user) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'alert_trigger',
+        `Triggered new alert: '${createdAlert.type}' with message: '${createdAlert.message}'`,
+        createdAlert._id?.toString(),
+        'Alert',
+        req
+      );
+    }
 
     // Emit real-time alert via Socket.IO to all connected clients
     const io = getIo();
@@ -72,6 +81,19 @@ export const deactivateAlert = async (req: Request, res: Response) => {
     alert.deactivatedAt = new Date();
 
     const updatedAlert = await alert.save();
+
+    // NEW: Log alert deactivation
+    if (req.user) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'alert_deactivate',
+        `Deactivated alert: '${updatedAlert.type}' (ID: ${updatedAlert._id}) with message: '${updatedAlert.message}'`,
+        updatedAlert._id?.toString(),
+        'Alert',
+        req
+      );
+    }
 
     // Emit real-time alert deactivation via Socket.IO
     const io = getIo();

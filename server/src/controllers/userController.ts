@@ -1,6 +1,7 @@
 // src/controllers/userController.ts
 import { Request, Response } from 'express';
 import User from '../models/User'; // Import the User model
+import { createAuditLog } from './auditController'; // NEW: Import createAuditLog
 
 // @desc    Get current user profile
 // @route   GET /api/users/profile
@@ -8,6 +9,17 @@ import User from '../models/User'; // Import the User model
 export const getUserProfile = async (req: Request, res: Response) => {
   // req.user is populated by the protect middleware
   if (req.user) {
+    // NEW: Log access to own profile
+    await createAuditLog(
+      req.user._id.toString(),
+      req.user.username,
+      'user_update', // Or 'user_access' if we define it
+      `Accessed own user profile: ${req.user.username}`,
+      req.user._id.toString(),
+      'User',
+      req
+    );
+
     res.json({
       _id: req.user._id,
       username: req.user.username,
@@ -26,6 +38,20 @@ export const getUsers = async (req: Request, res: Response) => {
   try {
     // Exclude password from the results
     const users = await User.find({}).select('-password');
+
+    // NEW: Log admin accessing all users
+    if (req.user) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'user_update', // Or 'user_list_access'
+        `Admin accessed list of all users`,
+        undefined, // No specific resource ID for listing all
+        'User',
+        req
+      );
+    }
+
     res.json(users);
   } catch (error: any) {
     console.error('Error fetching users:', error);
@@ -40,6 +66,18 @@ export const getUserById = async (req: Request, res: Response) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
     if (user) {
+      // NEW: Log admin accessing specific user profile
+      if (req.user) {
+        await createAuditLog(
+          req.user._id.toString(),
+          req.user.username,
+          'user_update', // Or 'user_profile_access'
+          `Admin accessed user profile: ${user.username} (ID: ${user._id})`,
+          user._id.toString(),
+          'User',
+          req
+        );
+      }
       res.json(user);
     } else {
       res.status(404).json({ message: 'User not found' });
@@ -63,19 +101,37 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
     // Allow user to update their own username/email, but role update only by admin
     if (req.user && (req.user.role === 'admin' || req.user._id.toString() === user._id.toString())) {
+      const oldRole = user.role; // Capture old role for logging
+
       user.username = req.body.username || user.username;
       user.email = req.body.email || user.email;
 
+      let details = `User profile updated for ${user.username} (ID: ${user._id}).`;
+
       // Only allow admin to change roles
-      if (req.user.role === 'admin' && req.body.role) {
+      if (req.user.role === 'admin' && req.body.role && req.body.role !== oldRole) {
         user.role = req.body.role;
+        details += ` Role changed from '${oldRole}' to '${user.role}'.`;
       }
 
       if (req.body.password) {
         user.password = req.body.password; // Password hashing handled by pre-save hook in User model
+        details += ` Password updated.`;
       }
 
       const updatedUser = await user.save();
+
+      // NEW: Log user profile update
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'user_update',
+        details,
+        updatedUser._id.toString(),
+        'User',
+        req
+      );
+
       res.json({
         _id: updatedUser._id,
         username: updatedUser.username,
@@ -102,7 +158,24 @@ export const deleteUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    const deletedUsername = user.username;
+    const deletedUserId = user._id;
+
     await User.deleteOne({ _id: req.params.id });
+
+    // NEW: Log user deletion
+    if (req.user) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'user_delete',
+        `User deleted: ${deletedUsername} (ID: ${deletedUserId}) by ${req.user.username}`,
+        deletedUserId.toString(),
+        'User',
+        req
+      );
+    }
+
     res.json({ message: 'User removed' });
   } catch (error: any) {
     console.error('Error deleting user:', error);

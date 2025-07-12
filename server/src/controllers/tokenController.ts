@@ -1,7 +1,8 @@
 // src/controllers/tokenController.ts
 import { Request, Response } from 'express';
-import Token, { IToken } from '../models/Token';
-import { getIo } from '../sockets/socket';
+import Token from '../models/Token';
+import { getIo } from '../sockets/socket'; // Import the Socket.IO instance
+import { createAuditLog } from './auditController'; // NEW: Import createAuditLog
 
 // @desc    Get current token for a specific department
 // @route   GET /api/tokens/:department
@@ -37,7 +38,19 @@ export const advanceToken = async (req: Request, res: Response) => {
       { new: true, upsert: true, setDefaultsOnInsert: true } // Return updated doc, create if not exists
     );
 
-    // Emit real-time update via Socket.IO
+    // NEW: Log token advance
+    if (req.user && updatedToken) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'token_advance',
+        `Advanced token for ${department} to ${updatedToken.currentToken}`,
+        req.user._id.toString(),
+        'Token',
+        req
+      );
+    }
+
     const io = getIo();
     io.emit('tokenUpdate', { action: 'advance', token: updatedToken });
 
@@ -62,7 +75,19 @@ export const resetToken = async (req: Request, res: Response) => {
       { new: true, upsert: true, setDefaultsOnInsert: true } // Return updated doc, create if not exists
     );
 
-    // Emit real-time update via Socket.IO
+    // NEW: Log token reset
+    if (req.user && updatedToken) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'token_reset',
+        `Reset token for ${department} to ${updatedToken.currentToken}`,
+        updatedToken._id?.toString(),
+        'Token',
+        req
+      );
+    }
+
     const io = getIo();
     io.emit('tokenUpdate', { action: 'reset', token: updatedToken });
 

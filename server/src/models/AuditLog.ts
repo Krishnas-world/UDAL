@@ -16,7 +16,10 @@ export type AuditActionType =
   | 'inventory_update'
   | 'inventory_delete'
   | 'alert_trigger'
-  | 'alert_deactivate';
+  | 'alert_deactivate'
+  | 'report_access'
+  | 'integration_fetch'
+  | 'integration_sync'; 
 
 // Interface for AuditLog Document
 export interface IAuditLog extends Document {
@@ -26,7 +29,7 @@ export interface IAuditLog extends Document {
   details: string; 
   resourceId?: mongoose.Schema.Types.ObjectId; 
   resourceType?: string; 
-  ipAddress?: string; 
+  ipAddress?: string;
   userAgent?: string;
   createdAt: Date;
 }
@@ -61,6 +64,7 @@ const AuditLogSchema: Schema<IAuditLog> = new Schema(
         'inventory_delete',
         'alert_trigger',
         'alert_deactivate',
+        'report_access', // NEW: Added to enum here
       ],
       required: true,
     },
@@ -77,7 +81,7 @@ const AuditLogSchema: Schema<IAuditLog> = new Schema(
     resourceType: {
       type: String,
       required: false,
-      enum: ['User', 'Schedule', 'Token', 'Inventory', 'Alert'], // Possible resource types
+      enum: ['User', 'Schedule', 'Token', 'Inventory', 'Alert', 'Report'], // Added 'Report' as a resource type
     },
     ipAddress: {
       type: String,

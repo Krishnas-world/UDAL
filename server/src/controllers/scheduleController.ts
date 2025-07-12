@@ -1,8 +1,9 @@
 // src/controllers/scheduleController.ts
 import { Request, Response } from 'express';
-import Schedule, { ISchedule } from '../models/Schedule';
-import Counter from '../models/Counter'; // NEW: Import Counter model
+import Schedule from '../models/Schedule';
+import Counter from '../models/Counter'; // Import Counter model
 import { getIo } from '../sockets/socket'; // Import the Socket.IO instance
+import { createAuditLog } from './auditController'; // NEW: Import createAuditLog
 
 // Helper function to get next sequence number for a department
 async function getNextSequence(department: string): Promise<number> {
@@ -34,10 +35,26 @@ export const getSchedules = async (req: Request, res: Response) => {
   }
 };
 
+// @desc    Get a single schedule by ID
+// @route   GET /api/schedules/:id
+// @access  Protected (general_staff, ot_staff, admin)
+export const getScheduleById = async (req: Request, res: Response) => {
+  try {
+    const schedule = await Schedule.findById(req.params.id);
 
-// NEW: @desc Get schedules by patient token
-// NEW: @route GET /api/schedules/by-patient-token/:patientToken
-// NEW: @access Protected (general_staff, ot_staff, pharmacy_staff, admin)
+    if (!schedule) {
+      return res.status(404).json({ message: 'Schedule not found' });
+    }
+    res.json(schedule);
+  } catch (error: any) {
+    console.error('Error fetching schedule by ID:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc Get schedules by patient token
+// @route GET /api/schedules/by-patient-token/:patientToken
+// @access Protected (general_staff, ot_staff, pharmacy_staff, admin)
 export const getSchedulesByPatientToken = async (req: Request, res: Response) => {
   try {
     const patientToken = req.params.patientToken as string;
@@ -58,34 +75,42 @@ export const getSchedulesByPatientToken = async (req: Request, res: Response) =>
 // @route   POST /api/schedules
 // @access  Protected (ot_staff, admin)
 export const createSchedule = async (req: Request, res: Response) => {
-  // patientToken is now system-assigned, so we don't expect it in the body
   const { department, type, doctorName, roomNumber, scheduledTime, notes } = req.body;
 
-  // Basic validation (patientToken is no longer required in body)
   if (!department || !type || !scheduledTime) {
     return res.status(400).json({ message: 'Please enter all required fields: department, type, scheduledTime' });
   }
 
   try {
-    // Generate patientToken based on department and a sequence number
     const nextSeq = await getNextSequence(department);
-    const deptCode = (department.substring(0, 3).toUpperCase()).substring(0, 3);
-    const generatedPatientToken = `${deptCode}-${nextSeq.toString().padStart(8, '0')}`;
+    const generatedPatientToken = `${department.toUpperCase()}-${nextSeq.toString().padStart(4, '0')}`;
 
     const schedule = new Schedule({
       department,
       type,
-      patientToken: generatedPatientToken, // Use the system-assigned token
+      patientToken: generatedPatientToken,
       doctorName,
       roomNumber,
-      scheduledTime: new Date(scheduledTime), // Ensure it's a Date object
-      status: 'Scheduled', // Default status
+      scheduledTime: new Date(scheduledTime),
+      status: 'Scheduled',
       notes,
     });
 
     const createdSchedule = await schedule.save();
 
-    // Emit real-time update via Socket.IO
+    // NEW: Log schedule creation
+    if (req.user) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'schedule_create',
+        `Created new ${createdSchedule.type} schedule for ${createdSchedule.department} (Patient: ${createdSchedule.patientToken})`,
+        (createdSchedule._id as string)?.toString(),
+        'Schedule',
+        req
+      );
+    }
+
     const io = getIo();
     io.emit('scheduleUpdate', { action: 'create', schedule: createdSchedule });
 
@@ -100,7 +125,6 @@ export const createSchedule = async (req: Request, res: Response) => {
 // @route   PUT /api/schedules/:id
 // @access  Protected (ot_staff, admin)
 export const updateSchedule = async (req: Request, res: Response) => {
-  // patientToken cannot be updated via this route, as it's system-assigned and part of the identifier logic
   const { department, type, doctorName, roomNumber, scheduledTime, status, notes } = req.body;
 
   try {
@@ -110,7 +134,9 @@ export const updateSchedule = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Schedule not found' });
     }
 
-    // Update fields (patientToken is not in this update payload)
+    const oldStatus = schedule.status; // Capture old status for logging
+    const oldScheduledTime = schedule.scheduledTime; // Capture old time for logging
+
     schedule.department = department || schedule.department;
     schedule.type = type || schedule.type;
     schedule.doctorName = doctorName || schedule.doctorName;
@@ -121,7 +147,26 @@ export const updateSchedule = async (req: Request, res: Response) => {
 
     const updatedSchedule = await schedule.save();
 
-    // Emit real-time update via Socket.IO
+    // NEW: Log schedule update
+    if (req.user) {
+      let details = `Updated ${updatedSchedule.type} schedule for ${updatedSchedule.department} (Patient: ${updatedSchedule.patientToken}).`;
+      if (status && status !== oldStatus) {
+        details += ` Status changed from '${oldStatus}' to '${updatedSchedule.status}'.`;
+      }
+      if (scheduledTime && new Date(scheduledTime).getTime() !== oldScheduledTime.getTime()) {
+        details += ` Time changed from '${oldScheduledTime.toISOString()}' to '${updatedSchedule.scheduledTime.toISOString()}'.`;
+      }
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'schedule_update',
+        details,
+        (updatedSchedule._id as string)?.toString(),
+        'Schedule',
+        req
+      );
+    }
+
     const io = getIo();
     io.emit('scheduleUpdate', { action: 'update', schedule: updatedSchedule });
 
@@ -143,9 +188,24 @@ export const deleteSchedule = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Schedule not found' });
     }
 
-    await Schedule.deleteOne({ _id: req.params.id }); // Use deleteOne for Mongoose 6+
+    const deletedScheduleDetails = `Schedule for ${schedule.department}, type ${schedule.type}, patient ${schedule.patientToken}`;
+    const deletedScheduleId = schedule._id;
 
-    // Emit real-time update via Socket.IO
+    await Schedule.deleteOne({ _id: req.params.id });
+
+    // NEW: Log schedule deletion
+    if (req.user) {
+      await createAuditLog(
+        req.user._id.toString(),
+        req.user.username,
+        'schedule_delete',
+        `Deleted ${deletedScheduleDetails} by ${req.user.username}`,
+        (deletedScheduleId as string)?.toString(),
+        'Schedule',
+        req
+      );
+    }
+
     const io = getIo();
     io.emit('scheduleUpdate', { action: 'delete', scheduleId: req.params.id });
 
