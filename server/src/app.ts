@@ -11,6 +11,7 @@ import inventoryRoutes from './routes/inventoryRoutes';
 import alertRoutes from './routes/alertRoutes';
 import auditRoutes from './routes/auditRoutes'; 
 import reportRoutes from './routes/reportRoutes'
+import metaRoutes from './routes/metaRoutes'
 // Import middleware
 import { protect } from './middlewares/authMiddleware';
 
@@ -38,4 +39,5 @@ app.use('/api/inventory', protect, inventoryRoutes);
 app.use('/api/alerts', protect, alertRoutes);
 app.use('/api/auditlogs', protect, auditRoutes); 
 app.use('/api/reports', protect, reportRoutes);
+app.use('/api/meta', protect, metaRoutes)
 export default app;

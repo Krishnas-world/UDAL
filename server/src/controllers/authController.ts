@@ -9,6 +9,7 @@ import { createAuditLog } from './auditController';
 // @access  Public (for initial setup, later restricted to admin)
 export const registerUser = async (req: Request, res: Response) => {
   const { username, email, password, role } = req.body;
+  console.log(username)
 
   try {
     // Check if user already exists

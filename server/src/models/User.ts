@@ -39,7 +39,7 @@ const UserSchema: Schema<IUser> = new Schema(
         },
         role: {
             type: String,
-            enum: ['admin', 'ot_staff', 'pharmacy_staff', 'general_staff'],
+            enum: ['admin', 'ot_staff', 'pharmacy_staff', 'general_staff', 'patient'],
             default: 'general_staff',
         },
     },

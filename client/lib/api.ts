@@ -1,16 +1,22 @@
+// lib/api.ts (or wherever your useAuth hook is located)
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 export const useAuth = () => {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Attempt to load user from localStorage
     const token = localStorage.getItem('token');
-    if (token) {
-      setUser({ token });
+    const role = localStorage.getItem('role');
+    const name = localStorage.getItem('name'); // Assuming you also store the user's name
+
+    if (token && role && name) {
+      setUser({ token, role, name }); // Set the user object with all relevant details
     }
     setLoading(false);
   }, []);
@@ -28,12 +34,13 @@ export const useAuth = () => {
       const data = await response.json();
       if (response.ok) {
         localStorage.setItem('token', data.token);
-        localStorage.setItem('role', data.role)
+        localStorage.setItem('role', data.role);
+        localStorage.setItem('name', data.name || email); // Store user's name, fallback to email
         setUser(data);
         if (data.role === 'admin') {
-          router.push("/admin/dashboard")
+          router.push('/admin/dashboard');
         } else {
-          router.push("/dashboard")
+          router.push('/dashboard');
         }
         return true;
       }
@@ -47,7 +54,9 @@ export const useAuth = () => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
+    localStorage.removeItem('name'); // Remove name on logout
     setUser(null);
+    router.push('/'); // Redirect to homepage after logout
   };
 
   return { user, loading, login, logout };

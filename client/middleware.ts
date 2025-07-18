@@ -12,7 +12,7 @@ export function middleware(req: NextRequest) {
   console.log("✅ Middleware executing...");
 
   const { pathname } = req.nextUrl;
-  const PUBLIC_PATHS = ['/_next', '/favicon.ico', '/api', '/.well-known'];
+  const PUBLIC_PATHS = ['/','/_next', '/favicon.ico', '/api', '/.well-known'];
 
   // Allow public/static/API paths
   if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
@@ -24,7 +24,7 @@ export function middleware(req: NextRequest) {
   // No token
   if (!token) {
     if (pathname === '/login' || pathname === '/register') {
-      return NextResponse.next(); // unauthenticated user can visit login/register
+      return NextResponse.next(); // allow unauthenticated access to login/register
     }
     return NextResponse.redirect(new URL('/login', req.url));
   }
@@ -40,27 +40,34 @@ export function middleware(req: NextRequest) {
       return res;
     }
 
-    // Authenticated users shouldn't access login/register again
-    if (pathname === '/login' || pathname === '/register') {
-      const redirectUrl = decoded.role === 'admin'
-        ? '/admin/dashboard'
-        : '/dashboard';
+    // Authenticated users shouldn't visit login/register again
+    if (pathname === '/login') {
+      const redirectUrl = decoded.role === 'admin' ? '/admin/dashboard' : '/dashboard';
       return NextResponse.redirect(new URL(redirectUrl, req.url));
     }
 
-    // 🛑 1. Admin trying to access non-admin dashboard
+    if (pathname === '/register') {
+      if (decoded.role === 'admin') {
+        return NextResponse.next(); // allow admin to register anyone
+      } else {
+        // Allow only department-specific register via frontend control
+        return NextResponse.next(); // still allow but control form on frontend
+      }
+    }
+
+    // Admin trying to access /dashboard
     if (pathname.startsWith('/dashboard') && decoded.role === 'admin') {
       console.log("⛔ Admin trying to access user dashboard");
       return NextResponse.redirect(new URL('/access-denied', req.url));
     }
 
-    // 🛑 2. Non-admin trying to access admin area
+    // Non-admin trying to access /admin
     if (pathname.startsWith('/admin') && decoded.role !== 'admin') {
       console.log("⛔ Non-admin trying to access admin route");
       return NextResponse.redirect(new URL('/access-denied', req.url));
     }
 
-    return NextResponse.next(); // All good
+    return NextResponse.next();
 
   } catch (err) {
     console.error("⛔ Invalid token:", err);
@@ -71,5 +78,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/login', '/register', '/dashboard/:path*', '/admin/:path*'],
+  matcher: ['/login', '/register', '/dashboard/:path*', '/admin/:path*'],
 };
