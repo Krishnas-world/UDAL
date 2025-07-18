@@ -42,7 +42,10 @@ export function middleware(req: NextRequest) {
 
     // Authenticated users shouldn't access login/register again
     if (pathname === '/login' || pathname === '/register') {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+      const redirectUrl = decoded.role === 'admin'
+        ? '/admin/dashboard'
+        : '/dashboard';
+      return NextResponse.redirect(new URL(redirectUrl, req.url));
     }
 
     // 🛑 1. Admin trying to access non-admin dashboard
