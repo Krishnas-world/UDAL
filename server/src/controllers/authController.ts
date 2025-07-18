@@ -23,11 +23,11 @@ export const registerUser = async (req: Request, res: Response) => {
       username,
       email,
       password,
-      role: role || 'general_staff', // Default role if not provided
+      role: role || 'general_staff',
     });
 
     if (user) {
-      // NEW: Log user registration
+  
       await createAuditLog(
         user._id.toString(),
         user.username,
@@ -35,7 +35,7 @@ export const registerUser = async (req: Request, res: Response) => {
         `New user registered: ${user.username} (${user.email}) with role ${user.role}`,
         user._id.toString(),
         'User',
-        req // Pass the request object to capture IP/User-Agent
+        req
       );
 
       res.status(201).json({
@@ -65,10 +65,10 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
-      // NEW: Log failed login attempt (optional, but good for security)
+     
       await createAuditLog(
-        'unknown', // No user ID if login failed
-        email, // Use email as identifier for failed attempt
+        'unknown',
+        email, 
         'user_login',
         `Failed login attempt for email: ${email}`,
         undefined,

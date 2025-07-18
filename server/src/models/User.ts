@@ -3,11 +3,10 @@ import bcrypt from 'bcryptjs';
 
 export type UserRole = 'admin' | 'ot_staff' | 'pharmacy_staff' | 'general_staff';
 
-// Interface for User Document
 export interface IUser extends Document {
     _id: Types.ObjectId;
     username: string;
-    password?: string; // Password is optional for Google/SSO, but required for local auth
+    password?: string;
     email: string;
     role: UserRole;
     createdAt: Date;

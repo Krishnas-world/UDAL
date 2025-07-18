@@ -1,15 +1,15 @@
 // src/controllers/alertController.ts
 import { Request, Response } from 'express';
 import Alert, { IAlert } from '../models/Alert';
-import { getIo } from '../sockets/socket'; // Import the Socket.IO instance
-import { createAuditLog } from './auditController'; // NEW: Import createAuditLog
+import { getIo } from '../sockets/socket'; 
+import { createAuditLog } from './auditController'; 
 
 // @desc    Get all active alerts
 // @route   GET /api/alerts/active
 // @access  Protected (general_staff, ot_staff, pharmacy_staff, admin)
 export const getActiveAlerts = async (_req: Request, res: Response) => {
   try {
-    const alerts = await Alert.find({ active: true }).sort({ triggeredAt: -1 }); // Latest active alerts first
+    const alerts = await Alert.find({ active: true }).sort({ triggeredAt: -1 }); 
     res.json(alerts);
   } catch (error: any) {
     console.error('Error fetching active alerts:', error);
@@ -32,13 +32,11 @@ export const triggerAlert = async (req: Request, res: Response) => {
       type,
       message,
       active: true,
-      triggeredBy: req.user?._id.toString(), // Get user ID from authenticated request
-      triggeredAt: new Date(),
+      triggeredBy: req.user?._id.toString(), 
     });
 
     const createdAlert = await newAlert.save();
 
-    // NEW: Log alert trigger
     if (req.user) {
       await createAuditLog(
         req.user._id.toString(),
@@ -50,8 +48,6 @@ export const triggerAlert = async (req: Request, res: Response) => {
         req
       );
     }
-
-    // Emit real-time alert via Socket.IO to all connected clients
     const io = getIo();
     io.emit('emergencyAlert', { action: 'trigger', alert: createdAlert });
 

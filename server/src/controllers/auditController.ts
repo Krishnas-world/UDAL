@@ -10,7 +10,7 @@ export const createAuditLog = async (
   details: string,
   resourceId?: mongoose.Schema.Types.ObjectId | string,
   resourceType?: string,
-  req?: Request // Optional: Pass the request object to get IP/User-Agent
+  req?: Request 
 ) => {
   try {
     const newLog = new AuditLog({
@@ -20,14 +20,14 @@ export const createAuditLog = async (
       details,
       resourceId,
       resourceType,
-      ipAddress: req ? req.ip : undefined, // Get IP from request
-      userAgent: req ? req.headers['user-agent'] : undefined, // Get User-Agent from request
+      ipAddress: req ? req.ip : undefined,
+      userAgent: req ? req.headers['user-agent'] : undefined, 
     });
     await newLog.save();
-    // console.log(`Audit Logged: ${actionType} by ${username}`); // For debugging
+    console.log(`Audit Logged: ${actionType} by ${username}`); // For debugging
   } catch (error: any) {
     console.error('Error creating audit log:', error.message);
-    // Important: Do not block the main request flow if audit logging fails
+    //! Important: Do not block the main request flow if audit logging fails
   }
 };
 
@@ -36,7 +36,6 @@ export const createAuditLog = async (
 // @access  Protected (admin)
 export const getAuditLogs = async (req: Request, res: Response) => {
   try {
-    // Build query filters
     const query: any = {};
     if (req.query.userId) {
       query.userId = req.query.userId;
@@ -54,11 +53,10 @@ export const getAuditLogs = async (req: Request, res: Response) => {
       query.createdAt = { ...query.createdAt, $lte: new Date(req.query.endDate as string) };
     }
 
-    // Fetch logs, populate user details and sort by creation date descending
     const logs = await AuditLog.find(query)
-      .populate('userId', 'username email role') // Populate user details
-      .sort({ createdAt: -1 }) // Latest logs first
-      .limit(parseInt(req.query.limit as string) || 100); // Limit to 100 by default
+      .populate('userId', 'username email role') 
+      .sort({ createdAt: -1 })
+      .limit(parseInt(req.query.limit as string) || 100); 
 
     res.json(logs);
   } catch (error: any) {
