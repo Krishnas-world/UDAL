@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/api';
 import { Heart, Mail, Lock, ChevronRight, AlertCircle, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,13 +27,9 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const success = await login(formData.email, formData.password);
-      if (success) {
-        console.log('Logged in');
-        // Redirection is handled by useAuth hook
-      } else {
-        setError('Invalid email or password. Please try again.');
-      }
+      await login(formData.email, formData.password);
+      console.log('Logged in');
+      // Redirection is handled by useAuth hook
     } catch (err) {
       console.error('Login error:', err);
       setError('Something went wrong. Please try again.');

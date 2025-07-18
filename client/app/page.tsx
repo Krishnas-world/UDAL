@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Users, Calendar, AlertTriangle, Activity, Shield, Database, Server, HardDrive, ChevronRight, Heart, Stethoscope, Building2, Phone, Mail, MapPin, User, LogOut, Settings, Bell, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation'; // Import useRouter
-import { useAuth } from '@/lib/api'; // Assuming your useAuth hook is in '@/lib/api'
+import { useAuth } from '@/context/AuthContext';
 
 export default function HomePage() {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -18,7 +18,7 @@ export default function HomePage() {
   // State for user details, now derived from useAuth
   console.log(user)
   const isLoggedIn = !!user;
-  const userName = user?.name || 'Guest'; // Assuming 'name' comes with user object from auth
+  const userName = user?.username || 'Guest'; // Assuming 'name' comes with user object from auth
   const userRole = user?.role || 'Visitor'; // Assuming 'role' comes with user object from auth
 
   useEffect(() => {

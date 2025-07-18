@@ -1,4 +1,4 @@
-import { useProtectedFetch } from '@/lib/api';
+import { useProtectedFetch } from'@/context/AuthContext'
 import { useState, useEffect } from 'react';
 
 export default function InventoryPage() {

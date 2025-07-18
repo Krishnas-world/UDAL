@@ -7,9 +7,10 @@ import { createAuditLog } from './auditController';
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public (for initial setup, later restricted to admin)
+
 export const registerUser = async (req: Request, res: Response) => {
   const { username, email, password, role } = req.body;
-  console.log(username)
+  console.log(username);
 
   try {
     // Check if user already exists
@@ -19,19 +20,20 @@ export const registerUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
+    const finalRole = role || 'general_staff'; // Default to general_staff if no role is provided
+
     // Create new user
     const user = await User.create({
       username,
       email,
       password,
-      role: role || 'general_staff',
+      role: finalRole,
     });
 
     if (user) {
-
       await createAuditLog(
-        user._id.toString(),
-        user.username,
+        req.user ? req.user._id.toString() : 'system', // Log who initiated this action
+        req.user ? req.user.username : 'System',
         'user_register',
         `New user registered: ${user.username} (${user.email}) with role ${user.role}`,
         user._id.toString(),
@@ -39,13 +41,14 @@ export const registerUser = async (req: Request, res: Response) => {
         req
       );
 
-      res.status(201).json({
-        _id: user._id,
-        username: user.username,
+      return res.status(201).json({
+        message: 'User registered successfully',
+        userId: user._id, 
+        username: user.username, 
         email: user.email,
         role: user.role,
-        token: generateToken(user._id.toString(), user.role),
       });
+
     } else {
       res.status(400).json({ message: 'Invalid user data' });
     }
@@ -114,12 +117,8 @@ export const loginUser = async (req: Request, res: Response) => {
     );
 
     return res.json({
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      token,
-    }); // ✅ return after response
+      user
+    })
   } catch (error: any) {
     console.error('Error logging in user:', error);
     if (!res.headersSent) {

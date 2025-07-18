@@ -16,13 +16,15 @@ import metaRoutes from './routes/metaRoutes'
 import { protect } from './middlewares/authMiddleware';
 
 const app = express();
-app.use(cookieParser());
 // Middleware
 app.use(express.json()); // Body parser for JSON data
+app.use(cookieParser());
 app.use(helmet()); // Set security HTTP headers
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true
+  origin: 'http://localhost:3000', // Your frontend origin
+  credentials: true, // MUST BE TRUE for cookies to be sent/received cross-origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Basic route for testing

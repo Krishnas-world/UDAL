@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useProtectedFetch } from '@/lib/api';
+import { useProtectedFetch } from'@/context/AuthContext'
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState('schedule');

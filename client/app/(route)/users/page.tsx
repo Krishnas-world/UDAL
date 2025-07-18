@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProtectedFetch } from '@/lib/api';
+import { useProtectedFetch } from'@/context/AuthContext'
 
 export default function UsersPage() {
   const router = useRouter();

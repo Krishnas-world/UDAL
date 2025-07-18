@@ -1,18 +1,11 @@
-// client/context/AuthContext.tsx
-'use client'; // This is a Client Component
+// src/context/AuthContext.tsx
+'use client';
 
-import React, {
-  createContext,
-  useState,
-  useContext,
-  useEffect,
-  ReactNode,
-} from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner'; // Import toast for notifications
+import { toast } from 'sonner';
 
-// Define the shape of the user data
 interface User {
   _id: string;
   username: string;
@@ -20,144 +13,144 @@ interface User {
   role: string;
 }
 
-// Define the shape of the AuthContext
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string, role?: string) => Promise<void>;
   logout: () => void;
-  loading: boolean; // To indicate if auth state is being loaded
+  loading: boolean;
 }
 
-// Create the AuthContext
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Backend API URL from environment variable
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL; // Corrected env variable name to match your register page
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider = ({ children }: AuthProviderProps) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true); // Initially true
-
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Load user from localStorage on initial load
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-
-    if (storedToken && storedUser) {
+    const fetchUser = async () => {
       try {
-        setUser(JSON.parse(storedUser));
-        setToken(storedToken);
-      } catch (e) {
-        console.error('Failed to parse stored user or token:', e);
-        logout(); // Clear invalid data
+        const res = await axios.get(`${BACKEND_URL}/api/users/profile`, {
+          withCredentials: true,
+        });
+        console.log(res)
+        setUser(res.data);
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+        setUser(null); // Not logged in
+      } finally {
+        setLoading(false);
       }
-    }
-    setLoading(false); // Auth state loaded
-  }, []);
+    };
+    fetchUser();
+  }, []); // Empty dependency array means this runs once on mount
 
-  // Login function
   const login = async (email: string, password: string) => {
-    setLoading(true);
     try {
-      const response = await axios.post(`${BACKEND_URL}/api/auth/login`, {
-        email,
-        password,
+      const res = await axios.post(`${BACKEND_URL}/api/auth/login`, { email, password }, {
+        withCredentials: true,
       });
-
-      const { token: newToken, ...userData } = response.data;
-      setUser(userData);
-      setToken(newToken);
-      localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(res.data.user);
       toast.success('Login successful!');
-
-      // Redirect based on role after successful login
-      if (userData.role === 'admin') {
-        router.push('/dashboard/admin');
-      } else if (userData.role === 'ot_staff') {
-        router.push('/dashboard/ot');
-      } else if (userData.role === 'pharmacy_staff') {
-        router.push('/dashboard/pharmacy');
-      } else {
-        router.push('/dashboard/general'); // Default for general_staff
-      }
-    } catch (error: any) {
-      console.error('Login failed:', error.response?.data || error.message);
-      toast.error(error.response?.data?.message || 'Login failed');
-      throw new Error(error.response?.data?.message || 'Login failed');
-    } finally {
-      setLoading(false);
+      redirectToDashboard(res.data.user.role);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Login failed');
+      throw err; // Re-throw to allow component to catch if needed
     }
   };
 
-  // UPDATED: Register function to automatically log in and redirect
-  const register = async (username: string, email: string, password: string) => {
-    setLoading(true);
+  const register = async (username: string, email: string, password: string, role?: string) => {
     try {
-      const response = await axios.post(`${BACKEND_URL}/api/auth/register`, {
+      // If the user already exists in the context and is an admin,
+      // and a role is provided, pass it. Otherwise, let backend default or infer.
+      const dataToSend = {
         username,
         email,
         password,
+        ...(role && { role }), // Only include role if it's provided (e.g., by admin)
+      };
+
+      const res = await axios.post(`${BACKEND_URL}/api/auth/register`, dataToSend, {
+        withCredentials: true,
       });
 
-      const { token: newToken, ...userData } = response.data;
-      setUser(userData);
-      setToken(newToken);
-      localStorage.setItem('token', newToken);
-      localStorage.setItem('user', JSON.stringify(userData));
-      toast.success('Registration successful! Welcome!');
+      // The backend 'registerUser' currently logs in the newly created user and returns their data.
+      // So, update the current user state with the newly registered user.
+      setUser(res.data.user);
+      toast.success('User registered successfully!');
+      // After successful registration, it's typically good to redirect the *newly registered user*.
+      // However, if an admin registers someone, the admin stays logged in.
+      // For this page, we'll let the RegisterPage component handle post-registration actions.
+      // If you want the new user to be automatically logged in, the backend should handle setting the cookie for the *new* user.
+      // But typically, a registration flow redirects to login or confirms registration.
+      // Given your backend response, it's setting the token for the *newly created user*.
+      // This means the admin who registered someone will be logged out and the new user logged in.
+      // This is probably not the desired behavior if an admin is creating accounts.
+      // If an admin is creating accounts, the backend's `registerUser` should NOT call `generateToken` for the newly created user,
+      // nor should it set a cookie. It should simply return success.
+      // The `AuthContext` here is for the *current* user.
+      // For now, let's assume `register` means the current *admin* is performing the registration
+      // and the current admin's session should persist.
+      // So, if the register API *does* log in the new user, we need to re-fetch the *admin's* user info.
+      // Or, better yet, the `register` API should not log in the newly created user if it's an admin registering.
 
-      // Redirect based on role after successful registration (now logged in)
-      if (userData.role === 'admin') {
-        router.push('/dashboard/admin');
-      } else if (userData.role === 'ot_staff') {
-        router.push('/dashboard/ot');
-      } else if (userData.role === 'pharmacy_staff') {
-        router.push('/dashboard/pharmacy');
-      } else {
-        router.push('/dashboard/general'); // Default for general_staff
-      }
-    } catch (error: any) {
-      console.error('Registration failed:', error.response?.data || error.message);
-      toast.error(error.response?.data?.message || 'Registration failed');
-      throw new Error(error.response?.data?.message || 'Registration failed');
-    } finally {
-      setLoading(false);
+      // Let's adjust based on the common flow: if an admin registers, the admin remains logged in.
+      // If a public user registers, they are then logged in.
+      // Your backend `registerUser` currently generates a token and returns it, implying auto-login for the *newly registered user*.
+      // This is fine if a user self-registers. If an admin registers, this logs out the admin.
+      // For the admin flow, the register endpoint should just return success without logging in the new user.
+      // For now, we'll leave it as is, assuming the backend's `registerUser` logs in the newly created user and you want *that* user's details.
+
+      // If the admin is creating the account and should remain logged in:
+      // You would simply toast success and not update the user state here,
+      // as the `user` state in AuthContext represents the *currently logged-in* user.
+      // Alternatively, the `registerUser` backend endpoint should not generate a token for the new user,
+      // but rather just create the user and return success.
+
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Registration failed');
+      throw err; // Re-throw to allow component to catch
     }
   };
 
+  const logout = async () => {
+    try {
+      await axios.post(`${BACKEND_URL}/api/auth/logout`, {}, { withCredentials: true });
+    } finally {
+      setUser(null);
+      toast.info('Logged out');
+      router.push('/login');
+    }
+  };
 
-  // Logout function
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    toast.info('You have been logged out.');
-    router.push('/login'); // Redirect to login page after logout
+  const redirectToDashboard = (role: string) => {
+    switch (role) {
+      case 'admin':
+        router.push('/admin/dashboard');
+        break;
+      case 'ot_staff':
+        router.push('/dashboard/ot');
+        break;
+      case 'pharmacy_staff':
+        router.push('/dashboard/pharmacy');
+        break;
+      default:
+        router.push('/dashboard/general');
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom hook to use the AuthContext
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
+  return ctx;
 };
