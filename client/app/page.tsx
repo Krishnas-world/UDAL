@@ -16,6 +16,7 @@ export default function HomePage() {
   const router = useRouter(); // Initialize useRouter
 
   // State for user details, now derived from useAuth
+  console.log(user)
   const isLoggedIn = !!user;
   const userName = user?.name || 'Guest'; // Assuming 'name' comes with user object from auth
   const userRole = user?.role || 'Visitor'; // Assuming 'role' comes with user object from auth

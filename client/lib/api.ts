@@ -35,7 +35,7 @@ export const useAuth = () => {
       if (response.ok) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('role', data.role);
-        localStorage.setItem('name', data.name || email); // Store user's name, fallback to email
+        localStorage.setItem('name', data.username || email); // Store user's name, fallback to email
         setUser(data);
         if (data.role === 'admin') {
           router.push('/admin/dashboard');
