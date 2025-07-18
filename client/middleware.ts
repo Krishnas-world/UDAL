@@ -38,7 +38,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Paths that are publicly accessible (login, register, home)
-  const publicPaths = ['/login', '/register', '/'];
+  const publicPaths = ['/login'];
 
   // All dashboard routes (including sub-dashboards) and other auth-required paths
   const protectedAuthPaths = [
