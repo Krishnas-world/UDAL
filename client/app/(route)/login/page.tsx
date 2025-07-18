@@ -1,11 +1,8 @@
 "use client"
-import { useAuth } from '@/lib/api';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useAuth } from '@/lib/api'
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,7 +12,7 @@ export default function LoginPage() {
 
     const success = await login(email, password);
     if (success) {
-      router.push('/');
+      console.log("Logged in")
     }
   };
 

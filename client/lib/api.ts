@@ -1,8 +1,9 @@
+import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-
 export const useAuth = () => {
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -21,12 +22,19 @@ export const useAuth = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
       if (response.ok) {
         localStorage.setItem('token', data.token);
+        localStorage.setItem('role', data.role)
         setUser(data);
+        if (data.role === 'admin') {
+          router.push("/admin/dashboard")
+        } else {
+          router.push("/dashboard")
+        }
         return true;
       }
       return false;
@@ -38,6 +46,7 @@ export const useAuth = () => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('role');
     setUser(null);
   };
 

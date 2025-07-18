@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser'
 // Import route modules
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
@@ -14,7 +15,7 @@ import reportRoutes from './routes/reportRoutes'
 import { protect } from './middlewares/authMiddleware';
 
 const app = express();
-
+app.use(cookieParser());
 // Middleware
 app.use(express.json()); // Body parser for JSON data
 app.use(helmet()); // Set security HTTP headers

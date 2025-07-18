@@ -27,7 +27,7 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     if (user) {
-  
+
       await createAuditLog(
         user._id.toString(),
         user.username,
@@ -61,28 +61,24 @@ export const loginUser = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   try {
-    // Check if user exists and select password
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
-     
       await createAuditLog(
         'unknown',
-        email, 
+        email,
         'user_login',
         `Failed login attempt for email: ${email}`,
         undefined,
         undefined,
         req
       );
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Invalid credentials' }); // ✅ return
     }
 
-    // Compare password
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
-      // NEW: Log failed login attempt
       await createAuditLog(
         user._id.toString(),
         user.username,
@@ -92,10 +88,20 @@ export const loginUser = async (req: Request, res: Response) => {
         'User',
         req
       );
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Invalid credentials' }); // ✅ return
     }
 
-    // NEW: Log successful login
+    // Successful login — everything validated now
+    const token = generateToken(user._id.toString(), user.role);
+
+    // ✅ Set cookie just before sending response
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
     await createAuditLog(
       user._id.toString(),
       user.username,
@@ -106,15 +112,18 @@ export const loginUser = async (req: Request, res: Response) => {
       req
     );
 
-    res.json({
+    return res.json({
       _id: user._id,
       username: user.username,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id.toString(), user.role),
-    });
+      token,
+    }); // ✅ return after response
   } catch (error: any) {
     console.error('Error logging in user:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
   }
 };
+
